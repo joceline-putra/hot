@@ -48,7 +48,7 @@ Konfigurasi ada di api/config.php:
 - db: host/port/dbname/user/pass untuk koneksi MySQL
 
 Endpoint:
-- POST /v1/sync
+- POST https://hotel.cvmaj.com/v1/sync
 - Header wajib: X-API-Key: <api_key>
 - Content-Type: application/json
 
@@ -72,7 +72,7 @@ Catatan:
 
 1) Edit client_service/config.py:
 - branch_id, branch_session: identitas cabang
-- api_url: contoh https://domain-anda.com/v1/sync
+- api_url: contoh https://hotel.cvmaj.com/v1/sync
 - api_key: harus sama dengan api/config.php
 - db_path: path ke file .mdb/.accdb
 - db_password: password Access (default: eLock0103)
