@@ -1,0 +1,20 @@
+CONFIG = {
+    "branch_id": 1,
+    "branch_session": "HL-SMG-001",
+    "api_url": "https://api.vps-kamu.com/v1/sync",
+    "api_key": "RAHASIA_JOE_123",
+    "db_path": r"C:\Path\Ke\Database\Hotel.accdb",
+    "db_password": "eLock0103",
+    "interval_seconds": 300,
+    "state_path": r".\sync_state.json",
+    "max_rows_per_request": 500,
+    "tables": [
+        {"source": "bill_info", "target": "_bill_info", "primary_key": "id"},
+        {"source": "bill_rooms", "target": "_bill_rooms", "primary_key": "id"},
+        {"source": "room_info", "target": "_room_info", "primary_key": "id"},
+        {"source": "employees", "target": "_employees", "primary_key": "id"},
+        {"source": "room_type", "target": "_room_type", "primary_key": "id"},
+        {"source": "make_card_record", "target": "_make_card_record", "primary_key": "id"},
+        {"source": "card_state", "target": "_card_state", "primary_key": "id"},
+    ],
+}
