@@ -1,0 +1,56 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# App config containing secrets
+api/config.php
+
+# PHP (Composer)
+vendor/
+composer.phar
+
+# PHPUnit / tooling caches
+.phpunit.result.cache
+.cache/
+tmp/
+temp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local databases / dumps (keep the committed one)
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+!hotel.sql
