@@ -1,9 +1,9 @@
 <?php
 
 return [
-    'api_key' => 'GANTI_API_KEY_DI_SINI',
+    'api_key' => 'API_KEY',
     'db' => [
-        'host' => 'localhost:2288',
+        'host' => 'localhost',
         'port' => 3306,
         'dbname' => 'cvmaj_hotel',
         'user' => 'joe',
