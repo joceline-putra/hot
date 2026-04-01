@@ -1,9 +1,9 @@
 <?php
 
 return [
-    'api_key' => 'API_KEY',
+    'api_key' => 'ABC',
     'db' => [
-        'host' => 'localhost',
+        'host' => 'localhost:2288',
         'port' => 3306,
         'dbname' => 'cvmaj_hotel',
         'user' => 'joe',

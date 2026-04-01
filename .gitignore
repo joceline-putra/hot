@@ -19,6 +19,7 @@ yarn-error.log*
 
 # App config containing secrets
 api/config.php
+api/config.local.php
 
 # PHP (Composer)
 vendor/
@@ -42,6 +43,7 @@ pip-wheel-metadata/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+client_service/sync_state.json
 
 # Python build artifacts
 build/

@@ -14,8 +14,12 @@ Project ini untuk sinkronisasi data hotel dari 2 PC Klien (Microsoft Access .mdb
 - api/
   - config.php (API key + koneksi MySQL)
   - v1/sync/index.php (endpoint sync)
-- v1/sync/index.php (alias endpoint agar URL bisa /v1/sync)
 - hotel.sql (schema MySQL VPS)
+
+### Status Implementasi
+
+- Endpoint API sudah bisa menerima request POST dan berhasil insert/upsert ke MySQL (indikator: response {"ok":true,"processed":N}).
+- Endpoint hanya menerima POST. GET akan mengembalikan "Method not allowed".
 
 ### Database (VPS / MySQL)
 
@@ -47,8 +51,9 @@ Konfigurasi ada di api/config.php:
 - api_key: kunci akses untuk mencegah orang lain mengirim data ke endpoint Anda
 - db: host/port/dbname/user/pass untuk koneksi MySQL
 
-Endpoint:
-- POST https://hotel.cvmaj.com/v1/sync
+Endpoint (wajib pakai trailing slash):
+- Dev (XAMPP / lokal): POST http://localhost/git/hot/api/v1/sync/
+- Prod (VPS): POST https://hotel.cvmaj.com/api/v1/sync/
 - Header wajib: X-API-Key: <api_key>
 - Content-Type: application/json
 
@@ -67,12 +72,19 @@ Contoh payload:
 Catatan:
 - API akan membuat source_id dari nilai primary_key (contoh: bill_no).
 - Kolom primary_key tidak dihapus dari data kecuali primary_key = "id".
+- API hanya akan menyimpan kolom yang memang ada di tabel VPS (kolom lain akan diabaikan).
+- Untuk upsert yang benar, tabel VPS harus punya UNIQUE KEY minimal pada (branch_id, source_id) seperti pada hotel.sql.
+
+Konfigurasi database MySQL:
+- Jangan gabungkan host dan port di field host. Contoh benar: host = "localhost" dan port = 3306.
 
 ### Service Klien (Python / Windows)
 
 1) Edit client_service/config.py:
 - branch_id, branch_session: identitas cabang
-- api_url: contoh https://hotel.cvmaj.com/v1/sync
+- api_url:
+  - Dev: http://localhost/git/hot/api/v1/sync/
+  - Prod: https://hotel.cvmaj.com/api/v1/sync/
 - api_key: harus sama dengan api/config.php
 - db_path: path ke file .mdb/.accdb
 - db_password: password Access (default: eLock0103)
@@ -87,6 +99,28 @@ Catatan:
 Catatan driver Access:
 - PC klien wajib punya ODBC driver "Microsoft Access Driver (*.mdb, *.accdb)".
 
+### Tes Cepat (Tanpa MDB)
+
+Tes ke Dev (lokal):
+
+```bash
+curl -i -X POST "http://localhost/git/hot/api/v1/sync/" \
+  -H "X-API-Key: <api_key>" \
+  -H "Content-Type: application/json" \
+  --data '{"branch_id":1,"branch_session":"HL-SMG-001","table":"_employees","primary_key":"emp_id","rows":[{"emp_id":"TEST-LOCAL-001","emp_name":"LOCAL USER"}]}'
+```
+
+Tes ke Prod (VPS):
+
+```bash
+curl -i -X POST "https://hotel.cvmaj.com/api/v1/sync/" \
+  -H "X-API-Key: <api_key>" \
+  -H "Content-Type: application/json" \
+  --data '{"branch_id":1,"branch_session":"HL-SMG-001","table":"_employees","primary_key":"emp_id","rows":[{"emp_id":"TEST-VPS-001","emp_name":"VPS USER"}]}'
+```
+
+Sukses jika response berisi {"ok":true,"processed":1} atau processed > 0.
+
 ### Keamanan
 
 - Jangan simpan kredensial database asli di README atau repo.
@@ -97,4 +131,6 @@ Catatan driver Access:
 
 - Error konek Access: pastikan driver Access terpasang dan db_path benar.
 - HTTP 401: api_key klien tidak sama dengan api/config.php.
-- Sync tidak masuk: cek endpoint /v1/sync bisa diakses dan database MySQL sesuai.
+- HTTP 405: method salah (endpoint hanya menerima POST).
+- HTTP 500 "DB connection failed": konfigurasi db di api/config.php salah atau MySQL tidak bisa diakses.
+- Sync tidak masuk: pastikan endpoint /api/v1/sync/ bisa diakses, api_key benar, dan tabel MySQL punya UNIQUE KEY (branch_id, source_id).

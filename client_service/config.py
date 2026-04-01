@@ -1,8 +1,8 @@
 CONFIG = {
     "branch_id": 1,
     "branch_session": "HL-SMG-001",
-    "api_url": "https://hotel.cvmaj.com/v1/sync",
-    "api_key": "API_KEY",
+    "api_url": "http://localhost/git/hot/api/v1/sync/",
+    "api_key": "ABC",
     "db_path": r"D:\Program Files\eLock Intelligent Lock Management System\eLock.mdb",
     "db_password": "eLock0618",
     "interval_seconds": 300,
