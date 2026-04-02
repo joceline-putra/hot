@@ -1,0 +1,2 @@
+2026-04-02T14:59:21Z test_send start url=http://localhost/git/hot/api/v1/sync/
+2026-04-02T14:59:23Z status=200 processed=1 ms=2199
