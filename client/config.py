@@ -1,11 +1,11 @@
 CONFIG = {
     "branch_id": 1,
-    "branch_session": "HL-SMG-001",
+    "branch_session": "BRANCH-1",
     "api_url": "http://localhost/git/hot/api/v1/sync/",
     "api_key": "ABC",
     "db_path": r"D:\Program Files\eLock Intelligent Lock Management System\eLock.mdb",
     "db_password": "eLock0618",
-    "interval_seconds": 300,
+    "interval_seconds": 60,
     "state_path": r".\sync_state.json",
     "max_rows_per_request": 500,
     "tables": [

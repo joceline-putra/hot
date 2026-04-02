@@ -2,17 +2,28 @@ import hashlib
 import json
 import os
 import time
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import pyodbc
+try:
+    import pyodbc
+except Exception:
+    pyodbc = None
 import requests
-                                                              from requests import Response
+from requests import Response
 
-from config import CONFIG
+try:
+    from config import CONFIG
+except Exception:
+    from client.config import CONFIG
 
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
 
 @dataclass(frozen=True)
 class TableConfig:
@@ -72,10 +83,12 @@ def _build_access_conn_str(db_path: str, password: str) -> List[str]:
     ]
 
 
-def connect_access(db_path: str, password: str) -> pyodbc.Connection:
+def connect_access(db_path: str, password: str) -> Any:
     last_err: Optional[Exception] = None
     for conn_str in _build_access_conn_str(db_path=db_path, password=password):
         try:
+            if pyodbc is None:
+                raise RuntimeError("pyodbc tidak tersedia. Install driver ODBC dan library pyodbc untuk akses MDB.")
             return pyodbc.connect(conn_str, autocommit=True)
         except Exception as e:
             last_err = e
@@ -85,7 +98,7 @@ def connect_access(db_path: str, password: str) -> pyodbc.Connection:
     ) from last_err
 
 
-def _fetch_table_rows(conn: pyodbc.Connection, table_name: str) -> Tuple[List[str], List[Dict[str, Any]]]:
+def _fetch_table_rows(conn: Any, table_name: str) -> Tuple[List[str], List[Dict[str, Any]]]:
     cursor = conn.cursor()
     cursor.execute(f"SELECT * FROM [{table_name}]")
     columns = [col[0] for col in cursor.description]
@@ -280,11 +293,41 @@ def main() -> None:
         try:
             sync_once(CONFIG)
         except Exception as e:
-            print(f"{_now_iso()} error: {e}")
+            print(f"{_now_iso()} error: {e}", flush=True)
         elapsed = time.time() - started
         sleep_for = max(1, interval_seconds - int(elapsed))
+        print(f"{_now_iso()} sleep {sleep_for}s", flush=True)
         time.sleep(sleep_for)
 
 
+def test_send() -> None:
+    payload_rows = [{"emp_id": "TEST-CLIENT-001", "emp_name": "CLIENT TEST"}]
+    print(f"{_now_iso()} test_send start url={CONFIG['api_url']}", flush=True)
+    try:
+        info = _post_rows(
+            api_url=str(CONFIG["api_url"]),
+            api_key=str(CONFIG["api_key"]),
+            branch_id=int(CONFIG["branch_id"]),
+            branch_session=str(CONFIG["branch_session"]),
+            table="_employees",
+            primary_key="emp_id",
+            rows=payload_rows,
+        )
+        print(
+            f"{_now_iso()} status={info.get('status_code')} processed={(info.get('json') or {}).get('processed')} ms={info.get('elapsed_ms')}",
+            flush=True,
+        )
+    except Exception as e:
+        print(f"{_now_iso()} error: {e}", flush=True)
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--test", action="store_true", help="Kirim payload contoh tanpa membaca MDB")
+    args = p.parse_args()
+    if args.test:
+        test_send()
+    else:
+        main()
