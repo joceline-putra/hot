@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pyodbc
 import requests
+                                                              from requests import Response
 
 from config import CONFIG
 
@@ -110,7 +111,7 @@ def _post_rows(
     primary_key: str,
     rows: List[Dict[str, Any]],
     timeout_seconds: int = 45,
-) -> None:
+) -> Dict[str, Any]:
     payload = {
         "branch_id": branch_id,
         "branch_session": branch_session,
@@ -119,14 +120,38 @@ def _post_rows(
         "primary_key": primary_key,
         "rows": [{k: _json_safe(v) for k, v in row.items()} for row in rows],
     }
-    resp = requests.post(
-        api_url,
-        json=payload,
-        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
-        timeout=timeout_seconds,
-    )
+    started = time.time()
+    try:
+        resp: Response = requests.post(
+            api_url,
+            json=payload,
+            headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+            timeout=timeout_seconds,
+        )
+    except requests.RequestException as e:
+        raise RuntimeError(f"HTTP request failed: {e}") from e
+
+    elapsed_ms = int((time.time() - started) * 1000)
+    text = resp.text or ""
+    resp_json: Any = None
+    json_error: Optional[str] = None
+    try:
+        resp_json = resp.json()
+    except Exception as e:
+        json_error = str(e)
+
+    result = {
+        "status_code": int(resp.status_code),
+        "elapsed_ms": elapsed_ms,
+        "json": resp_json,
+        "json_error": json_error,
+        "text": text[:2000],
+    }
+
     if resp.status_code >= 400:
-        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:1000]}")
+        raise RuntimeError(f"HTTP {resp.status_code}: {result.get('text')}")
+
+    return result
 
 
 def _resolve_tables(cfg: Dict[str, Any]) -> List[TableConfig]:
@@ -155,10 +180,15 @@ def sync_once(cfg: Dict[str, Any]) -> None:
 
     state = _load_state(state_path)
     tables_state: Dict[str, Dict[str, str]] = state["tables"]
+    api_responses: List[Dict[str, Any]] = state.get("api_responses", [])
+    if not isinstance(api_responses, list):
+        api_responses = []
+        state["api_responses"] = api_responses
 
     conn = connect_access(db_path=db_path, password=db_password)
     try:
         for table_cfg in _resolve_tables(cfg):
+            print(f"{_now_iso()} table {table_cfg.source} -> {table_cfg.target} fetch...", flush=True)
             _, rows = _fetch_table_rows(conn, table_cfg.source)
             table_key = table_cfg.target
             if table_key not in tables_state or not isinstance(tables_state[table_key], dict):
@@ -179,19 +209,61 @@ def sync_once(cfg: Dict[str, Any]) -> None:
                     known_hashes[pk_str] = row_hash
 
             if not changed_rows:
+                print(f"{_now_iso()} table {table_cfg.target} no changes ({len(rows)} rows scanned)", flush=True)
                 continue
+            print(
+                f"{_now_iso()} table {table_cfg.target} changes={len(changed_rows)}/{len(rows)} posting...",
+                flush=True,
+            )
 
+            total_chunks = (len(changed_rows) + max_rows_per_request - 1) // max_rows_per_request
+            chunk_idx = 0
             for chunk in _chunked(changed_rows, max_rows_per_request):
-                _post_rows(
-                    api_url=api_url,
-                    api_key=api_key,
-                    branch_id=branch_id,
-                    branch_session=branch_session,
-                    table=table_cfg.target,
-                    primary_key=table_cfg.primary_key,
-                    rows=chunk,
+                chunk_idx += 1
+                print(
+                    f"{_now_iso()} POST {table_cfg.target} chunk {chunk_idx}/{total_chunks} rows={len(chunk)} ...",
+                    flush=True,
                 )
-            print(f"{_now_iso()} synced {len(changed_rows)} rows -> {table_cfg.target}")
+                resp_info: Dict[str, Any] = {}
+                err: Optional[str] = None
+                try:
+                    resp_info = _post_rows(
+                        api_url=api_url,
+                        api_key=api_key,
+                        branch_id=branch_id,
+                        branch_session=branch_session,
+                        table=table_cfg.target,
+                        primary_key=table_cfg.primary_key,
+                        rows=chunk,
+                    )
+                except Exception as e:
+                    err = str(e)
+                    raise
+                finally:
+                    entry = {
+                        "at": _now_iso(),
+                        "table": table_cfg.target,
+                        "primary_key": table_cfg.primary_key,
+                        "rows_sent": len(chunk),
+                        "error": err,
+                        "response": resp_info,
+                    }
+                    api_responses.append(entry)
+                    if len(api_responses) > 100:
+                        del api_responses[:-100]
+                    state["api_responses"] = api_responses
+                    _save_state(state_path, state)
+
+                processed = None
+                if isinstance(resp_info.get("json"), dict):
+                    processed = resp_info["json"].get("processed")
+                print(
+                    f"{_now_iso()} OK {table_cfg.target} chunk {chunk_idx}/{total_chunks} "
+                    f"status={resp_info.get('status_code')} processed={processed} "
+                    f"ms={resp_info.get('elapsed_ms')}",
+                    flush=True,
+                )
+            print(f"{_now_iso()} synced {len(changed_rows)} rows -> {table_cfg.target}", flush=True)
     finally:
         try:
             conn.close()

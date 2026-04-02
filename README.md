@@ -7,9 +7,9 @@ Project ini untuk sinkronisasi data hotel dari 2 PC Klien (Microsoft Access .mdb
 
 ### Struktur Folder
 
-- client_service/
+- client/
   - config.py (konfigurasi cabang, URL, API key, path DB Access)
-  - sync_service.py (service sinkronisasi)
+  - sync.py (service sinkronisasi)
   - requirements.txt
 - api/
   - config.php (API key + koneksi MySQL)
@@ -80,7 +80,7 @@ Konfigurasi database MySQL:
 
 ### Service Klien (Python / Windows)
 
-1) Edit client_service/config.py:
+1) Edit client/config.py:
 - branch_id, branch_session: identitas cabang
 - api_url:
   - Dev: http://localhost/git/hot/api/v1/sync/
@@ -91,10 +91,10 @@ Konfigurasi database MySQL:
 - interval_seconds: interval sync
 
 2) Install dependency:
-- pip install -r client_service/requirements.txt
+- pip install -r client/requirements.txt
 
 3) Jalankan service:
-- python client_service/sync_service.py
+- python client/sync.py
 
 Catatan driver Access:
 - PC klien wajib punya ODBC driver "Microsoft Access Driver (*.mdb, *.accdb)".
