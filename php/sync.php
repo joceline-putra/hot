@@ -254,10 +254,11 @@ function resolve_tables(array $cfg): array
         if (!is_array($t) || !isset($t['source'])) {
             continue;
         }
+        $pk = array_key_exists('primary_key', $t) ? (string) ($t['primary_key'] ?? '') : 'id';
         $resolved[] = [
             'source' => (string) $t['source'],
             'target' => (string) (($t['target'] ?? null) ?: $t['source']),
-            'primary_key' => (string) (($t['primary_key'] ?? null) ?: 'id'),
+            'primary_key' => $pk,
         ];
     }
     return $resolved;
@@ -291,7 +292,8 @@ function sync_once(array $cfg): void
         foreach (resolve_tables($cfg) as $table_cfg) {
             $source = $table_cfg['source'];
             $target = $table_cfg['target'];
-            $primary_key = $table_cfg['primary_key'];
+            $primary_key = (string) ($table_cfg['primary_key'] ?? '');
+            $send_primary_key = ($primary_key !== '' ? $primary_key : '__row_hash');
 
             echo now_iso() . ' table ' . $source . ' -> ' . $target . " fetch...\n";
             $rows = fetch_table_rows($conn, $source);
@@ -302,19 +304,53 @@ function sync_once(array $cfg): void
             $known_hashes = &$tables_state[$target];
 
             $changed_rows = [];
+            $current_keys = [];
+            $warned_pk_missing = false;
+
             foreach ($rows as $row) {
-                if (!array_key_exists($primary_key, $row)) {
+                if ($primary_key !== '' && array_key_exists($primary_key, $row)) {
+                    $pk_val = $row[$primary_key];
+                    if ($pk_val === null || $pk_val === '') {
+                        continue;
+                    }
+                    $pk_str = (string) $pk_val;
+                    $current_keys[$pk_str] = true;
+                    $row_hash = stable_row_hash($row);
+                    if (!isset($known_hashes[$pk_str]) || $known_hashes[$pk_str] !== $row_hash) {
+                        $changed_rows[] = $row;
+                        $known_hashes[$pk_str] = $row_hash;
+                    }
                     continue;
                 }
-                $pk_val = $row[$primary_key];
-                if ($pk_val === null || $pk_val === '') {
-                    continue;
+
+                if ($primary_key !== '' && !$warned_pk_missing) {
+                    echo now_iso() . ' warning: table ' . $source . ' primary_key=' . $primary_key . " tidak ditemukan, fallback __row_hash\n";
+                    $warned_pk_missing = true;
                 }
-                $pk_str = (string) $pk_val;
+
                 $row_hash = stable_row_hash($row);
-                if (!isset($known_hashes[$pk_str]) || $known_hashes[$pk_str] !== $row_hash) {
+                $current_keys[$row_hash] = true;
+                if (!isset($known_hashes[$row_hash])) {
+                    $row['__row_hash'] = $row_hash;
                     $changed_rows[] = $row;
-                    $known_hashes[$pk_str] = $row_hash;
+                }
+            }
+
+            $known_hashes = [];
+            foreach ($current_keys as $k => $_) {
+                $known_hashes[$k] = ($primary_key !== '' ? ($known_hashes[$k] ?? '') : '1');
+            }
+
+            if ($primary_key === '') {
+                $known_hashes = [];
+                foreach ($current_keys as $k => $_) {
+                    $known_hashes[$k] = '1';
+                }
+            } else {
+                foreach ($known_hashes as $k => $v) {
+                    if (!isset($current_keys[$k])) {
+                        unset($known_hashes[$k]);
+                    }
                 }
             }
 
@@ -339,7 +375,7 @@ function sync_once(array $cfg): void
                         $branch_id,
                         $branch_session,
                         $target,
-                        $primary_key,
+                        $send_primary_key,
                         $chunk,
                     );
                 } catch (Throwable $e) {
@@ -349,7 +385,7 @@ function sync_once(array $cfg): void
                     $entry = [
                         'at' => now_iso(),
                         'table' => $target,
-                        'primary_key' => $primary_key,
+                        'primary_key' => $send_primary_key,
                         'rows_sent' => count($chunk),
                         'error' => $err,
                         'response' => $resp_info,
